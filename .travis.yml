@@ -1,96 +1,46 @@
 sudo: required
 language: c
 services: docker
-cache: ccache
 
 env:
   global:
     - DOCKERHUB_IMG=yhnw/openwrt-sdk
-    - BINTRAY_USER=hnw
-    - BINTRAY_REPO=openwrt-packages
     - PKG_NAME=miruo
     - QUIET=1 # 1: suppress build log / "": output all
   matrix:
-    - DISTRO=15.05.1 ARCH=ar71xx PKG_DIR=bin/ar71xx/packages
-    - DISTRO=lede    ARCH=ar71xx PKG_DIR=bin/packages/mips_24kc
+    - DISTRO=openwrt-15.05.1 ARCH=ar71xx        PKG_DIR=bin/ar71xx/packages
+    - DISTRO=lede-17.01.2    ARCH=ar71xx        PKG_DIR=bin/packages/mips_24kc
+    - DISTRO=lede-17.01.2    ARCH=ramips-mt7620 PKG_DIR=bin/packages/mipsel_24kc
+    - DISTRO=lede-17.01.2    ARCH=bcm53xx       PKG_DIR=bin/packages/arm_cortex-a9
 
 before_install:
   - docker version
-  - ccache -s | tee ccache.log
+  - mkdir $PWD/pkgs
+  - chmod 777 $PWD/pkgs
 
 script:
-  - docker run --rm -u openwrt -v $PWD:/work -v $HOME/.ccache:/home/openwrt/.ccache ${DOCKERHUB_IMG}:${DISTRO}-${ARCH} /bin/bash /work/build.sh ${DISTRO}-${ARCH} $PKG_DIR $PKG_NAME $QUIET
+  - docker run --rm -u openwrt -v $PWD:/work ${DOCKERHUB_IMG}:${DISTRO}-${ARCH} /bin/bash /work/build.sh ${DISTRO}-${ARCH} $PKG_DIR $PKG_NAME $QUIET
   - ls -la
-  - |
-    echo '### before build ###' &&
-    cat ccache.log &&
-    echo &&
-    echo '### after build ###' &&
-    ccache -s
 
 after_failure:
-  - if [[ -e build.log ]]; then tail -300 build.log; fi
-
-before_deploy:
-  - |
-    if [[ ! -e "descriptor.json" ]]; then
-      if [[ -n "$TRAVIS_TAG" ]]; then
-        export VERSION=stable;
-        export VCS_TAG="$TRAVIS_TAG";
-        export DESC="Stable release";
-        export UPLOAD_DIR_SUFFIX=;
-      else
-        export VERSION=develop;
-        export VCS_TAG=HEAD;
-        export DESC="Development snapshot";
-        export UPLOAD_DIR_SUFFIX=-dev;
-      fi;
-      export RELEASED=$(date +%Y-%m-%d);
-      UPLOAD_EXT=ipk envsubst < descriptor.json.in > descriptor.json;
-      cat descriptor.json;
-      UPLOAD_EXT=sig PKG_NAME=zzz0-metadata-signature envsubst < descriptor.json.in > descriptor-sig.json;
-      cat descriptor-sig.json;
-    fi
-
-# bintrayからPackagesとPackages.gzを取ってきて自分でusignを起動して*.sigを作ってアップロードする処理。いずれ全部Bintray側でやってくれるようになるはず。
-after_deploy:
-  - |
-    if [[ ! -e "pkgs-for-bintray/Packages" ]] ; then
-      sleep 4;
-      for file in Packages Packages.gz; do
-        for retry in $(seq 1 10); do
-          if [[ ! -e "pkgs-for-bintray/$file" ]] ; then
-            wget -P pkgs-for-bintray https://dl.bintray.com/${BINTRAY_USER}/${BINTRAY_REPO}/${DISTRO}/${ARCH}${UPLOAD_DIR_SUFFIX}/$file && break;
-          fi
-          sleep 2
-        done
-      done
-    fi
-  - |
-    if [[ -e "pkgs-for-bintray/Packages" && ! -e "pkgs-for-bintray/Packages.sig" ]] ; then
-      echo docker run --rm -u openwrt -v $PWD:/work ${DOCKERHUB_IMG}:${DISTRO}-${ARCH} /bin/bash /work/sign.sh USIGN_SECRET_KEY;
-    fi
+  - if [[ -e pkgs/build.log ]]; then tail -300 pkgs/build.log; fi
 
 deploy:
-  - provider: bintray
-    file: "descriptor.json"
-    user: ${BINTRAY_USER}
-    key:
-      secure: "PEjZMRp3XPQ2N/H5vIHzHq9U6vSQuGB5gR2mkkExIP44GQ3NwiqPGAE3LhRCrFM5LF735ZHiL3Qa/eixLBVIxHJKj/EMDpktMHuj4mQrnODlx3WbegdlyOKosRj8khXM//JBuYQa9hn9yz42NaKdIMuFBgYSN0juBY4gJGUYfoEnx7tNm2pqfjW2DVnJT2MIE9+t//dBHx4GGJrSSMgQx21ts9CDaHGsuhJSqeVPG/rjSBYdo4JRHHco1jf/rG8ZMJ1sYZdnnT5j2l/npVvqx9b6EWghB7Rr0X+ydTdM06KMxtCPHevdHPvVQjXZ5hLYm1kbw+9VuE+WFsR/VTXmltmu4vpVbyE55WA5XDUw1juim42ioCn8gM3oEjCK1vJbTM2yvmw/+AUd+ESRn93z/EeuoLB5Rufu584EPkpYHPsfwXuF5MzAZ2Mu30TX5YiKRlFJSw0iyq+x5HUFVw87OBCcrwmNJOjnePdPpJuJtoO0aDKC0sekQenjWvj7Uhx2xydcTr62/Uc7Sr9SNvVuP0ZEX0pnPwu4eSBld38CFeapFTLMGP5tBK8OZtNV7WU7Msv9ZoAWZlkfLOAm4WZ3um9nM4UPQt1h7iuAyGnDLj1/ZtYqrrStnbq8oZNBq/yCap1B6ShAbtdjcQalM/3VerapqbokcWMMlDIIcNb/D5c="
-    on:
-      all_branches: true
-  - provider: bintray
-    file: "descriptor-sig.json"
-    user: ${BINTRAY_USER}
-    key:
-      secure: "PEjZMRp3XPQ2N/H5vIHzHq9U6vSQuGB5gR2mkkExIP44GQ3NwiqPGAE3LhRCrFM5LF735ZHiL3Qa/eixLBVIxHJKj/EMDpktMHuj4mQrnODlx3WbegdlyOKosRj8khXM//JBuYQa9hn9yz42NaKdIMuFBgYSN0juBY4gJGUYfoEnx7tNm2pqfjW2DVnJT2MIE9+t//dBHx4GGJrSSMgQx21ts9CDaHGsuhJSqeVPG/rjSBYdo4JRHHco1jf/rG8ZMJ1sYZdnnT5j2l/npVvqx9b6EWghB7Rr0X+ydTdM06KMxtCPHevdHPvVQjXZ5hLYm1kbw+9VuE+WFsR/VTXmltmu4vpVbyE55WA5XDUw1juim42ioCn8gM3oEjCK1vJbTM2yvmw/+AUd+ESRn93z/EeuoLB5Rufu584EPkpYHPsfwXuF5MzAZ2Mu30TX5YiKRlFJSw0iyq+x5HUFVw87OBCcrwmNJOjnePdPpJuJtoO0aDKC0sekQenjWvj7Uhx2xydcTr62/Uc7Sr9SNvVuP0ZEX0pnPwu4eSBld38CFeapFTLMGP5tBK8OZtNV7WU7Msv9ZoAWZlkfLOAm4WZ3um9nM4UPQt1h7iuAyGnDLj1/ZtYqrrStnbq8oZNBq/yCap1B6ShAbtdjcQalM/3VerapqbokcWMMlDIIcNb/D5c="
-    on:
-      all_branches: true
   - provider: releases
     api_key:
       secure: "oRXT6D3YcMXpJccPDP4sxYhwvXkCwz2I79zDey/wioQEvmul5sS5vnOWvmc07j/cE5VwkpraRQVXMkQxrG5KuNsinNyhtudbS9OcUTdfn0kAi09OTFv7bCDj6DGWAxvHi/aPUOFX0yDEGl6fghA+jfMT8vDbO+WWtRkiZE1Na3S/KsHY9nYaFSU/DOZMxK3b8JxSs7KPKrREgHmDoxAdyHZuIpuPnHF63DtfH4tuBD+bWzXiKZ1BMsFEoLhGMPPF5WBkxREX35SHSX61NkDu2KIKiZeE205jVllJuFZqhIrBk0JfDUyyb8QMZT6CAFkGplxDO7Ad6eYz92ER9+CIjqcqmJ0JmH5xFT3neVcHYULyVv5qHfiqkdKFXiv8XL3KEHz6QgNqPOsh3DZmlVSyioPXF7IHYFX5TziK+LKRt3DWMbDbpz5sG85tz1+XHsuUPE/dj+tLfButJtvdEryPwIIw+UlSFRgkErzVtnCV9OCm0v+t1fM07OE6EBydAUT2S3d2I1hpVVboUGMci7lhkI3g0GuJ2oueeNU9hEQ9CzUP56fCNa1AdMbfqwixVz5cpCAxFw2BhQz2BW6lwrICeAKaUy4tu5yeW5vxJrkdgWCTeRCWzzdAgeShgXOJg0xwI3qtSHh74h7AAwxknIvXnOJeUc48zXeNWJYImpAJc/8="
     file_glob: true
-    file: "pkgs-for-github/*.ipk"
+    file: "pkgs/for-github/*.ipk"
     skip_cleanup: true
     on:
       tags: true
+  - provider: gcs
+    access_key_id: "GOOGZU4AGJJUVQ4DLX52"
+    secret_access_key:
+      secure: "gP1Zw0fwTOvDhQocl+2DL0qHkqyKjTger+KB8HodkCuJYBhubzCdEkUnmHh7j+bNhfc95aEwcHWOeMVEn8KiAM8aRbKnhnti5Bt5FVxdwjlB9iSaL7SsGaIcjO4pXEFWxwvbuuaeoowzSP4iBKoDVtXpDmCJrDhGKuRBNFLCmE2dB2P29HOT8tIS1oBGjFYVJx09+eRCSJTGJHemE/wsnAWu6RfQ7JA2yjwXbckQB92UQbw/ox2bnqqST+oORd/z0ipRBmSXRxPr/uZP9Zp6InpSgFfeLB0PLf0e7mWvjzotrzlndEEeGOv4cATUv30eTzOBKz2lna/tU56+c7S4jtHkW6rojm3g2zcUFheEwOfSVjWrSIUQhKGlSrvdEB4cyct2OSJrVNz805n2sY0tG5r51daGWh3thDspQvbCoSL2njbZu1QEHzB0OoKhZObxu00HdqCWDEXE7XK5nUenzHDzC0hLUlwZmEZJxoItcsbz3TtdbxUvFGYF+4abAC/VEnBXAKTeWhim9GOPFzjJQsMD9kCo/21tTDEtswVDJLm/HZolPCMv2zIbzLvCzmyhlhmcwjhksGG7eTT9MlQhlBzm1Jtpxls0XG3L8qLN52LZxDxmi0xH51SSNxl3RnNl/j2cO1ZriDccELrq5objpweIyluge2OREAtNt/Wo+wk="
+    bucket: "hnw-gcs-bucket-for-travis"
+    skip_cleanup: true
+    local-dir: pkgs/for-github/
+    upload-dir: $(basename ${TRAVIS_REPO_SLUG})-${TRAVIS_BUILD_NUMBER}
+    on:
+      branch: master
