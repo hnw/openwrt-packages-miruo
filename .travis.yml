@@ -6,6 +6,7 @@ env:
   global:
     - DOCKERHUB_IMG=yhnw/openwrt-sdk
     - PKG_NAME=miruo
+    - OPENWRT_GID=1000
     - QUIET=1 # 1: suppress build log / "": output all
   matrix:
     - DISTRO=openwrt-15.05.1 ARCH=ar71xx        PKG_DIR=bin/ar71xx/packages
@@ -16,7 +17,14 @@ env:
 before_install:
   - docker version
   - mkdir $PWD/pkgs
-  - chmod 777 $PWD/pkgs
+  - |
+    if [[ "$(cat /etc/group | grep $OPENWRT_GID | wc -l)" == "0" ]]; then
+        sudo groupadd -g $OPENWRT_GID openwrt
+        sudo chgrp openwrt $PWD/pkgs
+    else
+        sudo chgrp "$(getent group $OPENWRT_GID | cut -d: -f1)" $PWD/pkgs
+    fi
+  - sudo chmod g+ws $PWD/pkgs
 
 script:
   - docker run --rm -u openwrt -v $PWD:/work ${DOCKERHUB_IMG}:${DISTRO}-${ARCH} /bin/bash /work/build.sh ${DISTRO}-${ARCH} $PKG_DIR $PKG_NAME $QUIET
