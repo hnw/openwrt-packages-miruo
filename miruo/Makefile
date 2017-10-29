@@ -19,7 +19,7 @@ PKG_MAINTAINER:=Yoshio HANAWA <for-openwrt@hnw.jp>
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/miruo
+define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Pretty-print TCP session monitor/analyzer
@@ -27,14 +27,14 @@ define Package/miruo
   DEPENDS:=+libpcap
 endef
 
-define Package/miruo/description
+define Package/$(PKG_NAME)/description
   Network monitor/analyzer which prints packets on terminal in neat style.
   Packet data can also be read from a file saved by tcpdump(1).
 endef
 
-define Package/miruo/install
+define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/miruo $(1)/usr/sbin/
 endef
 
-$(eval $(call BuildPackage,miruo))
+$(eval $(call BuildPackage,$(PKG_NAME)))

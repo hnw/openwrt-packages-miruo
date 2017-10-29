@@ -1,16 +1,10 @@
-# openwrt-packages-miruo
+# openwrt-packages-miruo [![Build Status](https://secure.travis-ci.org/hnw/openwrt-packages-miruo.svg?branch=master)](https://travis-ci.org/hnw/openwrt-packages-miruo)
 
-This is `miruo` package for OpenWrt, tested on CC(15.05.1).
+This is [miruo](https://github.com/KLab/miruo/) package for OpenWrt, tested on OpenWrt 15.05.1 / LEDE 17.01.4.
 
 # How to install binary package
 
-```
-$ opkg update
-$ opkg install openssl-util
-$ echo 'src/gz hnw https://dl.bintray.com/hnw/openwrt-packages/15.05.1/ar71xx' >> /etc/opkg/customfeeds.conf
-$ opkg update
-$ opkg install miruo
-```
+See [hnw/openwrt-packages](https://github.com/hnw/openwrt-packages).
 
 # How to build
 
