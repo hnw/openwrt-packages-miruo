@@ -22,5 +22,5 @@ $ ./scripts/feeds update -a
 $ ./scripts/feeds install miruo
 $ make defconfig
 $ make package/toolchain/compile
-$ make packages/miruo/compile
+$ make package/miruo/compile
 ```
